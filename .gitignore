@@ -55,3 +55,6 @@ next-env.d.ts
 /.claude/scheduled_tasks.lock
 /docs/appstore-screenshots-prompt.md
 /docs/superpowers/specs/2026-08-02-fin-design.md
+
+# recording intermediate; the mp4 next to it is the deliverable
+/docs/promo/fin-demo.webm
