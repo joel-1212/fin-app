@@ -1,0 +1,84 @@
+/* Material Symbols Rounded（可変フォント）。CDNではなく同梱してオフラインでも動くようにする */
+@import "material-symbols/rounded.css";
+
+:root {
+  /* ライトモードを基本とする。白基調で、静かに集中できる配色 */
+  --bg: #f5f3ef;
+  --sheet: #eceae5;
+  --fg: #17181a;
+  --accent: #a9702f;
+
+  --fg-60: rgba(23, 24, 26, 0.6);
+  --fg-50: rgba(23, 24, 26, 0.5);
+  --fg-45: rgba(23, 24, 26, 0.45);
+  --fg-42: rgba(23, 24, 26, 0.42);
+  --fg-38: rgba(23, 24, 26, 0.38);
+  --fg-32: rgba(23, 24, 26, 0.3);
+  --fg-14: rgba(23, 24, 26, 0.12);
+  --hover: rgba(0, 0, 0, 0.035);
+}
+
+:root[data-theme="dark"] {
+  --bg: #0e0f10;
+  --sheet: #17181a;
+  --fg: #f2f0ec;
+  --accent: #e8b27d;
+
+  --fg-60: rgba(242, 240, 236, 0.6);
+  --fg-50: rgba(242, 240, 236, 0.5);
+  --fg-45: rgba(242, 240, 236, 0.45);
+  --fg-42: rgba(242, 240, 236, 0.42);
+  --fg-38: rgba(242, 240, 236, 0.38);
+  --fg-32: rgba(242, 240, 236, 0.32);
+  --fg-14: rgba(242, 240, 236, 0.14);
+  --hover: rgba(255, 255, 255, 0.04);
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: -apple-system, "SF Pro Text", "Hiragino Sans", system-ui, sans-serif;
+  /* 数字を主役にするので、桁ズレを起こさない等幅数字を全体の既定にする */
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── アイコン ──────────────────────────────────────────
+   FILL 軸を 0→1 に動かすことで、完了時に線画から塗りへ滑らかに変わる。
+   紙吹雪だけだと大げさになるので、この控えめな変化が「静かに認める」温度を作る。 */
+.icon {
+  font-family: "Material Symbols Rounded";
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: "liga";
+  -webkit-font-smoothing: antialiased;
+  font-variation-settings:
+    "FILL" var(--icon-fill, 0),
+    "wght" var(--icon-weight, 300),
+    "GRAD" 0,
+    "opsz" 24;
+  transition: font-variation-settings 340ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .icon {
+    transition: none;
+  }
+}

@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>Fin — App Store Screenshots (13-inch iPad)</title>
+<style>
+  /* 13インチ iPad の必須サイズ。iPhone 用の 5 枚を、同じ砂色の地の上に
+     そのまま大きく置き直す。iPad 専用のレイアウトは作らないので、
+     内容を作り替えず、余白の取り方だけを iPad の比率に合わせる。 */
+  :root {
+    --board-w: 2064px;
+    --board-h: 2752px;
+    --sand: #E4D7C1;
+    --hill: #D8C7AB;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #111; }
+  .gallery { display: flex; }
+  .artboard {
+    position: relative;
+    width: var(--board-w);
+    height: var(--board-h);
+    background: var(--sand);
+    overflow: hidden;
+    flex: 0 0 auto;
+    /* 絶対配置＋translate だと丸め方向によって 1px 単位でずれるので、
+       中央寄せは flex に任せる。 */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  /* iPhone 版と同じ、地平線のゆるい丘。 */
+  .artboard::after {
+    content: "";
+    position: absolute;
+    left: -10%;
+    right: -10%;
+    bottom: -34%;
+    height: 62%;
+    background: var(--hill);
+    border-radius: 50% 50% 0 0 / 42% 42% 0 0;
+  }
+  .shot {
+    position: relative;
+    /* 1284x2778 の板を、高さ基準で iPad の板に収める。 */
+    height: 2560px;
+    width: auto;
+    display: block;
+    border-radius: 26px;
+    box-shadow: 0 40px 90px rgba(38, 28, 12, 0.18);
+    z-index: 1;
+  }
+</style>
+</head>
+<body>
+  <main class="gallery">
+    <section class="artboard"><img class="shot" src="out/fin-1.png" alt=""></section>
+    <section class="artboard"><img class="shot" src="out/fin-2.png" alt=""></section>
+    <section class="artboard"><img class="shot" src="out/fin-3.png" alt=""></section>
+    <section class="artboard"><img class="shot" src="out/fin-4.png" alt=""></section>
+    <section class="artboard"><img class="shot" src="out/fin-5.png" alt=""></section>
+  </main>
+  <script>
+    // ?shot=N で、その 1 枚だけを原点に置いた 2064x2752 のページにする。
+    // ヘッドレス Chrome から --window-size=2064,2752 で等倍のまま撮るため。
+    (function () {
+      const n = Number(new URLSearchParams(location.search).get("shot"));
+      if (!Number.isInteger(n) || n < 1 || n > 5) return;
+      const gallery = document.querySelector(".gallery");
+      gallery.style.transform = `translateX(${-(n - 1) * 2064}px)`;
+      document.body.style.width = "2064px";
+      document.body.style.height = "2752px";
+      document.body.style.overflow = "hidden";
+    })();
+  </script>
+</body>
+</html>

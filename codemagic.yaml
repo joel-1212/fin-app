@@ -1,0 +1,115 @@
+workflows:
+  ios-app-store:
+    name: iOS App Store
+    max_build_duration: 60
+    integrations:
+      # App Manager 権限を持つ既存の App Store Connect キーを流用する。
+      # 名前は Codemagic 上の登録名で、実体はこの Apple Team のキー。
+      app_store_connect: MusicDNA ASC
+    environment:
+      groups:
+        # APPLE_CERT_PRIVATE_KEY を保持する。署名証明書の作成・保存に必要。
+        # 名前が重複しているのは Codemagic 側の登録時の入力ミス由来。実体に合わせている。
+        - fin_apple_credentialsfin_apple_credentials
+      vars:
+        BUNDLE_ID: app.fin
+        XCODE_PROJECT: ios/App/App.xcodeproj
+        # Capacitor は CocoaPods を使うため、ビルドは workspace 側で行う。
+        XCODE_WORKSPACE: ios/App/App.xcworkspace
+        XCODE_SCHEME: App
+    scripts:
+      - name: Install dependencies
+        script: npm ci --ignore-scripts
+      - name: Create capacitor-www placeholder
+        script: mkdir -p capacitor-www
+      - name: Add or sync iOS platform
+        script: |
+          if [ -e "$XCODE_PROJECT" ]; then
+            npx cap sync ios
+          else
+            npx cap add ios
+          fi
+      - name: Install the app icon into the generated iOS project
+        # ios/ は毎ビルド生成し直されるため、放置すると Capacitor のプレースホルダー
+        # アイコンのまま提出されてしまう。生成された AppIcon セットの各スロットを、
+        # 元画像から実サイズにリサイズして置き換える。
+        #
+        # 元画像 public/app-icon-1024.png は 1024x1024・アルファなし・端まで不透明。
+        # Apple はアルファ付きのアイコンをリジェクトし、透明部分は白く抜けて見えるため、
+        # sips の出力にアルファが混入していないこともここで検査する。
+        script: |
+          set -e
+          ICONSET="ios/App/App/Assets.xcassets/AppIcon.appiconset"
+          SOURCE="public/app-icon-1024.png"
+
+          test -f "$SOURCE" || { echo "app icon source is missing: $SOURCE"; exit 1; }
+          test -d "$ICONSET" || { echo "generated icon set is missing: $ICONSET"; exit 1; }
+
+          slots=$(find "$ICONSET" -name '*.png')
+          test -n "$slots" || { echo "no icon slots found in $ICONSET"; exit 1; }
+
+          for slot in $slots; do
+            width=$(sips -g pixelWidth "$slot" | awk '/pixelWidth/{print $2}')
+            height=$(sips -g pixelHeight "$slot" | awk '/pixelHeight/{print $2}')
+            sips -s format png --resampleHeightWidth "$height" "$width" "$SOURCE" --out "$slot"
+            echo "installed ${width}x${height} -> $slot"
+          done
+
+          for slot in $slots; do
+            if sips -g hasAlpha "$slot" | grep -q 'hasAlpha: yes'; then
+              echo "icon slot kept an alpha channel, which App Review rejects: $slot"
+              exit 1
+            fi
+          done
+      - name: Declare export compliance in Info.plist
+        # Fin は HTTPS 以外の暗号化を使わないため、輸出コンプライアンスの免除に該当する。
+        # ios/ は CI 上で生成されるので、毎ビルド後にここで書き込む。
+        # これがないと App Store Connect が毎回「コンプライアンスがありません」と表示する。
+        script: |
+          /usr/libexec/PlistBuddy \
+            -c "Add :ITSAppUsesNonExemptEncryption bool false" \
+            ios/App/App/Info.plist \
+            || /usr/libexec/PlistBuddy \
+              -c "Set :ITSAppUsesNonExemptEncryption false" \
+              ios/App/App/Info.plist
+      - name: Set a build number above the last uploaded one
+        # ios/ は毎ビルド生成し直され、Capacitor の既定は常に 1 になる。
+        # App Store Connect は同じビルド番号のアップロードを拒否するため、
+        # 2 回目以降はここで番号を上げないと publishing 段階で必ず失敗する。
+        # Codemagic の $BUILD_NUMBER はアプリごとに単調増加するので、それを使う。
+        script: |
+          set -e
+          cd ios/App
+          agvtool new-version -all "$BUILD_NUMBER"
+          agvtool what-version
+      - name: Install CocoaPods dependencies
+        # npm ci は --ignore-scripts のため pod install が走らない。ここで明示的に入れる。
+        script: |
+          cd ios/App
+          pod install
+      - name: Fetch or create signing files
+        # app.fin のプロビジョニングプロファイルはまだ存在しないため --create で新規作成する。
+        # 認証情報は上の app_store_connect 統合から自動的に環境へ渡る。
+        script: |
+          keychain initialize
+          printf '%s' "$APPLE_CERT_PRIVATE_KEY" > /tmp/cert_key.pem
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --certificate-key "@file:/tmp/cert_key.pem" \
+            --create
+          keychain add-certificates
+          xcode-project use-profiles
+      - name: Build ipa for distribution
+        script: |
+          xcode-project build-ipa \
+            --workspace "$XCODE_WORKSPACE" \
+            --scheme "$XCODE_SCHEME"
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        # IPA は App Store Connect にアップロードするが、TestFlight 配布・審査提出はオーナーが手動で行う。
+        submit_to_testflight: false
+        submit_to_app_store: false

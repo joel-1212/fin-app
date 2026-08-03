@@ -1,0 +1,57 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# local env files
+.env*.local
+.env
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# harness runtime state is local and must not be committed
+.harness/runtime-events.jsonl
+.harness/locks/
+.harness/tool-log.jsonl
+.harness/tool-logs/
+
+.vercel
+
+# business-internal: must never be published (repo goes public for Shipaton Next Gen)
+/.company/
+/.harness/
+/docs/APPSTORE.md
+/docs/audit-schedule.md
+/docs/fin-user-acquisition-places.md
+/docs/promo-launch.md
+/docs/promo/
+/docs/shipaton-submission.md
+/docs/superpowers/specs/2026-08-02-pro-pricing-model.md
+/docs/superpowers/specs/2026-08-02-user-acquisition-growth-plan.md
+/.claude/scheduled_tasks.lock
+/docs/appstore-screenshots-prompt.md
+/docs/superpowers/specs/2026-08-02-fin-design.md
