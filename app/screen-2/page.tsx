@@ -63,8 +63,19 @@ function Screen2Content() {
 
   useEffect(() => {
     if (cancelledRef.current) return;
-    if (task?.status === "idle") store.startTask(task.id);
-  }, [store.startTask, task?.id, task?.status]);
+    if (!task || task.status !== "idle") return;
+
+    const activeTaskId = store.state.activeTaskId;
+    // 進行中の1件があるなら、こちらを始めない。reducer は黙って弾くので、
+    // 画面だけが動いているつもりになるのを防ぐ。開きたかった気持ちの行き先として、
+    // 進行中のタスクへ差し替える。
+    if (activeTaskId !== null && activeTaskId !== task.id) {
+      router.replace(`/screen-2?taskId=${encodeURIComponent(activeTaskId)}`);
+      return;
+    }
+
+    store.startTask(task.id);
+  }, [router, store.startTask, store.state.activeTaskId, task?.id, task?.status]);
 
   useEffect(() => {
     if (task?.status !== "running") return;
@@ -258,7 +269,11 @@ function Screen2Content() {
             textAlign: "center",
           }}
         >
-          {task.status === "paused" ? (
+          {task.status === "elapsed" ? (
+            <strong style={{ color: "var(--fg)", fontWeight: 600 }}>
+              {"\u6642\u9593\u306b\u306a\u308a\u307e\u3057\u305f\u3002\u7d42\u308f\u308a\u3092\u6c7a\u3081\u308b\u306e\u306f\u3042\u306a\u305f\u3067\u3059\u3002"}
+            </strong>
+          ) : task.status === "paused" ? (
             <>
               {"\u4e00\u6642\u505c\u6b62\u4e2d\u3067\u3059\u3002\u4eca\u518d\u958b\u3057\u305f\u5834\u5408\u306f "}
               <strong style={{ color: "var(--fg)", fontWeight: 600 }}>{finishLabel}</strong>
@@ -278,9 +293,22 @@ function Screen2Content() {
             <button type="button" onClick={completeTask} style={primaryButtonStyle}>
               {"\u30bf\u30b9\u30af\u3092\u5b8c\u4e86"}
             </button>
-            <button type="button" onClick={togglePaused} style={secondaryButtonStyle}>
-              {task.status === "paused" ? "\u518d\u958b" : "\u4e00\u6642\u505c\u6b62"}
-            </button>
+            {task.status === "elapsed" ? (
+              // 満了中に「一時停止」は意味を持たない（もう止まっている）。
+              // 代わりに、続けるための選択肢を出す。
+              <>
+                <button type="button" onClick={() => store.extendTask(task.id, 5 * 60_000)} style={secondaryButtonStyle}>
+                  {"5\u5206\u306e\u3070\u3059"}
+                </button>
+                <button type="button" onClick={() => store.extendTask(task.id, 10 * 60_000)} style={secondaryButtonStyle}>
+                  {"10\u5206\u306e\u3070\u3059"}
+                </button>
+              </>
+            ) : (
+              <button type="button" onClick={togglePaused} style={secondaryButtonStyle}>
+                {task.status === "paused" ? "\u518d\u958b" : "\u4e00\u6642\u505c\u6b62"}
+              </button>
+            )}
           </div>
         )}
       </section>

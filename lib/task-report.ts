@@ -1,4 +1,4 @@
-import type { PersistedTaskStateV1 } from "./task-state";
+import type { PersistedTaskState } from "./task-state";
 
 const MILLISECONDS_PER_MINUTE = 60_000;
 
@@ -70,7 +70,7 @@ type ReportGroup = {
  * Summarizes persisted completed-task history. Every completed task is counted
  * once, regardless of whether it was manually or automatically completed.
  */
-export function selectTaskReport(state: Pick<PersistedTaskStateV1, "tasks">): TaskReport {
+export function selectTaskReport(state: Pick<PersistedTaskState, "tasks">): TaskReport {
   const groups = new Map<number, ReportGroup>();
   let totalCompletedTaskCount = 0;
 
@@ -116,7 +116,7 @@ type CompletedTask = {
 };
 
 /** 集計に使える完了タスクだけを取り出す。壊れた値はここで落とす。 */
-function selectCompletedTasks(state: Pick<PersistedTaskStateV1, "tasks">): CompletedTask[] {
+function selectCompletedTasks(state: Pick<PersistedTaskState, "tasks">): CompletedTask[] {
   const completed: CompletedTask[] = [];
   for (const task of state.tasks) {
     if (
@@ -151,7 +151,7 @@ function toLocalDayKey(timestamp: number): string {
   return `${date.getFullYear()}-${month}-${day}`;
 }
 
-export function selectTodaySummary(state: Pick<PersistedTaskStateV1, "tasks">, now: number): TodaySummary {
+export function selectTodaySummary(state: Pick<PersistedTaskState, "tasks">, now: number): TodaySummary {
   const today = toLocalDayKey(now);
   let completedCount = 0;
   let totalActiveMs = 0;
@@ -186,7 +186,7 @@ function roundSuggestion(averageActualMs: number, overrun: boolean): number {
  * 同じ名前のタスクを繰り返した結果から、見積もりの直し方を提案する。
  * 一度きりのブレでは出さず、割合と絶対値の両方を満たしたものだけを返す。
  */
-export function selectEstimateAdvice(state: Pick<PersistedTaskStateV1, "tasks">): EstimateAdvice[] {
+export function selectEstimateAdvice(state: Pick<PersistedTaskState, "tasks">): EstimateAdvice[] {
   const groups = new Map<string, { count: number; totalActualMs: number; totalEstimateMs: number }>();
 
   for (const task of selectCompletedTasks(state)) {
@@ -220,8 +220,57 @@ export function selectEstimateAdvice(state: Pick<PersistedTaskStateV1, "tasks">)
   return advice.sort((left, right) => right.completionCount - left.completionCount);
 }
 
+export type WeeklyReport = {
+  /** 今日を含む直近7日間に終えた件数。 */
+  completedCount: number;
+  totalActiveMs: number;
+  /** 見積もり時間内に終えられた件数。 */
+  withinEstimateCount: number;
+  /** 0〜1。完了が無いときは 0。 */
+  withinEstimateRate: number;
+  /** 7日のうち、1件以上終えた日の数。 */
+  activeDayCount: number;
+};
+
+/**
+ * 今日を含む直近7日間のまとめ。日付の境界はローカル暦（selectTodaySummary と同じ理由）。
+ * 「見積もり内」は実測が見積もり以下だったこと。達成を責める向きには使わず、
+ * 見積もりの精度が育っていることを見せるための数字。
+ */
+export function selectWeeklyReport(state: Pick<PersistedTaskState, "tasks">, now: number): WeeklyReport {
+  const dayKeys = new Set<string>();
+  for (let offset = 0; offset < 7; offset += 1) {
+    const date = new Date(now);
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() - offset);
+    dayKeys.add(toLocalDayKey(date.getTime()));
+  }
+
+  let completedCount = 0;
+  let totalActiveMs = 0;
+  let withinEstimateCount = 0;
+  const activeDays = new Set<string>();
+
+  for (const task of selectCompletedTasks(state)) {
+    const day = toLocalDayKey(task.completedAt);
+    if (!dayKeys.has(day)) continue;
+    completedCount += 1;
+    totalActiveMs += task.actualMs;
+    if (task.actualMs <= task.estimateMs) withinEstimateCount += 1;
+    activeDays.add(day);
+  }
+
+  return {
+    activeDayCount: activeDays.size,
+    completedCount,
+    totalActiveMs,
+    withinEstimateCount,
+    withinEstimateRate: completedCount === 0 ? 0 : withinEstimateCount / completedCount,
+  };
+}
+
 /** 完了履歴をローカル暦の日ごとにまとめ、新しい日から順に返す。 */
-export function selectHistoryByDay(state: Pick<PersistedTaskStateV1, "tasks">): HistoryDay[] {
+export function selectHistoryByDay(state: Pick<PersistedTaskState, "tasks">): HistoryDay[] {
   const days = new Map<string, HistoryDay>();
 
   for (const task of selectCompletedTasks(state).sort((left, right) => right.completedAt - left.completedAt)) {

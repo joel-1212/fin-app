@@ -24,7 +24,7 @@ export default function PrivacyPage() {
             LEGAL
           </p>
           <h1 id="privacy-title">プライバシーポリシー</h1>
-          <p className={styles.date}>制定日: 2026年8月2日 / 最終改定日: 2026年8月3日</p>
+          <p className={styles.date}>制定日: 2026年8月2日 / 最終改定日: 2026年9月3日</p>
         </header>
 
         <div className={styles.prose}>
@@ -33,7 +33,13 @@ export default function PrivacyPage() {
           <section aria-labelledby="privacy-collection">
             <h2 id="privacy-collection">1. 収集する情報</h2>
             <p>利用者のタスクデータ(タスク名、所要時間、完了の記録、テンプレート、表示設定など)は、お使いの端末・ブラウザ内のストレージにのみ保存されます。運営者はこれらのデータを保持するサーバーを持たず、これらが運営者に送信されることはありません。アプリを終了しても保存された内容は残り、端末内のデータを消去するまで保持されます。</p>
-            <p>アカウントの作成やサインインは必要ありません。本サービスは現時点でアクセス解析ツール、広告トラッキング、Cookieによる利用者識別を導入していません。</p>
+            <p>アカウントの作成やサインインは必要ありません。本サービスは広告トラッキングやCookieによる利用者識別を導入していません。利用状況の送信は、次項の初回アンケートに限られます。</p>
+          </section>
+
+          <section aria-labelledby="privacy-survey">
+            <h2 id="privacy-survey">1-2. 初回アンケート(利用状況の集計)について</h2>
+            <p>初回起動時に「このアプリをどこで知ったか」を1回だけお聞きします。選んだ項目とアプリ名、端末の種類(iOS / Web)、アプリの版、日付のみを、運営者の集計用スプレッドシート(Google LLC が提供するサービス上)に送信します。端末の識別子・氏名・メールアドレス・位置情報などの個人を特定する情報は送信しません。</p>
+            <p>回答は任意です。「答えずに始める」を選ぶと何も送信されません。集計はアプリの告知先を決める目的にのみ使い、第三者に提供しません。</p>
           </section>
 
           <section aria-labelledby="privacy-purchase">
@@ -55,7 +61,7 @@ export default function PrivacyPage() {
 
           <section aria-labelledby="privacy-third-party">
             <h2 id="privacy-third-party">5. 第三者への情報提供</h2>
-            <p>運営者は、上記2に記載した購入処理の場合を除き、利用者の情報を第三者に提供することはありません(法令に基づく場合を除きます)。</p>
+            <p>運営者は、上記1-2に記載した集計用サービスへの送信および上記2に記載した購入処理の場合を除き、利用者の情報を第三者に提供することはありません(法令に基づく場合を除きます)。</p>
           </section>
 
           <section aria-labelledby="privacy-medical">

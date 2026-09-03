@@ -4,11 +4,11 @@ import { useEffect, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { Icon } from "@/components/Icon";
 import { useTaskStore } from "@/app/providers";
-import { getProStatus, type ProStatus } from "@/lib/entitlement";
 import {
   selectEstimateAdvice,
   selectHistoryByDay,
   selectTodaySummary,
+  selectWeeklyReport,
   type EstimateAdvice,
   type HistoryDay,
   type TodaySummary,
@@ -27,23 +27,27 @@ const mutedStyle: CSSProperties = { color: "var(--fg-42)", fontSize: 13, lineHei
 
 export default function Page() {
   const store = useTaskStore();
-  const [proStatus, setProStatus] = useState<ProStatus | null>(null);
-  // 集計の基準時刻はマウント時に一度だけ確定させる。毎レンダーで Date.now() を
-  // 読むと、開きっぱなしの画面で「今日」が静かにずれていく。
+  // 毎レンダーで Date.now() を読むと表示が落ち着かないので基準時刻は state に持つ。
+  // ただしマウント時に固定したままだと、開きっぱなしで日をまたいだとき
+  // 「今日のまとめ」が昨日のままになる。戻ってきたときに取り直す。
   const [now, setNow] = useState<number | null>(null);
 
   useEffect(() => {
-    setNow(Date.now());
-    let cancelled = false;
-    void getProStatus().then((status) => {
-      if (!cancelled) setProStatus(status);
-    });
+    const refresh = () => setNow(Date.now());
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+
+    refresh();
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
-      cancelled = true;
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, []);
 
-  const ready = store.hydrated && proStatus !== null && now !== null;
+  const ready = store.hydrated && now !== null;
   const summary = now === null ? null : selectTodaySummary(store.state, now);
 
   return (
@@ -84,11 +88,11 @@ export default function Page() {
           </h1>
         </header>
 
-        {/* 判定前に無料版を描くと、Pro の利用者に一瞬だけ案内が見えてしまう。 */}
+        {/* 記録の集計は 2026-08-19 の F1 決定で無料開放した。Pro ゲートはここには無い。 */}
         {ready && summary ? (
           <>
             <TodayCard summary={summary} />
-            {proStatus === "pro" ? <ProSections state={store.state} /> : <UpgradeCard />}
+            <RecordSections state={store.state} now={now!} />
           </>
         ) : (
           <p style={mutedStyle}>読み込んでいます…</p>
@@ -127,12 +131,36 @@ function TodayCard({ summary }: { summary: TodaySummary }) {
   );
 }
 
-function ProSections({ state }: { state: Parameters<typeof selectHistoryByDay>[0] }) {
+function RecordSections({ state, now }: { state: Parameters<typeof selectHistoryByDay>[0]; now: number }) {
   const advice = selectEstimateAdvice(state);
   const history = selectHistoryByDay(state);
+  const weekly = selectWeeklyReport(state, now);
 
   return (
     <>
+      <section aria-labelledby="weekly-title" style={{ display: "grid", gap: 12 }}>
+        <h2 id="weekly-title" style={sectionTitleStyle}>
+          直近7日の実績
+        </h2>
+        <div style={cardStyle}>
+          {weekly.completedCount === 0 ? (
+            <p style={mutedStyle}>この7日間の記録はまだありません。</p>
+          ) : (
+            <>
+              <p style={{ fontSize: "clamp(1.25rem, 5vw, 1.5rem)", fontWeight: 600, lineHeight: 1.5, margin: 0 }}>
+                {weekly.completedCount}件 ・ {formatDuration(weekly.totalActiveMs)}
+              </p>
+              <p style={mutedStyle}>
+                7日のうち {weekly.activeDayCount}日 で完了
+                {" ・ "}
+                見積もり内で終えたのは {weekly.completedCount}件中 {weekly.withinEstimateCount}件（
+                {Math.round(weekly.withinEstimateRate * 100)}%）
+              </p>
+            </>
+          )}
+        </div>
+      </section>
+
       <section aria-labelledby="advice-title" style={{ display: "grid", gap: 12 }}>
         <h2 id="advice-title" style={sectionTitleStyle}>
           見積もりの提案
@@ -189,6 +217,9 @@ function AdviceRow({ advice }: { advice: EstimateAdvice }) {
 }
 
 function HistoryCard({ day }: { day: HistoryDay }) {
+  const { deleteTask } = useTaskStore();
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+
   return (
     <div style={cardStyle}>
       <div style={{ alignItems: "baseline", display: "flex", gap: 12, justifyContent: "space-between" }}>
@@ -199,10 +230,48 @@ function HistoryCard({ day }: { day: HistoryDay }) {
       </div>
       <ul style={{ display: "grid", gap: 8, listStyle: "none", margin: 0, padding: 0 }}>
         {day.tasks.map((task) => (
-          <li key={task.id} style={{ alignItems: "center", display: "flex", gap: 10 }}>
+          <li key={task.id} style={{ alignItems: "center", display: "flex", gap: 10, minHeight: 32 }}>
             <Icon name={task.icon} size={18} weight={350} color="var(--fg-42)" />
-            <span style={{ flex: 1, fontSize: 14 }}>{task.title}</span>
-            <span style={{ color: "var(--fg-42)", fontSize: 13 }}>{formatDuration(task.actualMs)}</span>
+            <span style={{ flex: 1, fontSize: 14, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {task.title}
+            </span>
+            {confirmingId === task.id ? (
+              <span style={{ alignItems: "center", display: "flex", flex: "0 0 auto", gap: 6 }}>
+                <button type="button" onClick={() => setConfirmingId(null)} style={historyCancelButtonStyle}>
+                  キャンセル
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    deleteTask(task.id);
+                    setConfirmingId(null);
+                  }}
+                  style={historyDeleteButtonStyle}
+                >
+                  削除する
+                </button>
+              </span>
+            ) : (
+              <>
+                <span style={{ color: "var(--fg-42)", fontSize: 13 }}>{formatDuration(task.actualMs)}</span>
+                <button
+                  type="button"
+                  aria-label={task.title + "の記録を削除"}
+                  onClick={() => setConfirmingId(task.id)}
+                  style={{
+                    background: "transparent",
+                    border: 0,
+                    color: "var(--fg-42)",
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    flex: "0 0 auto",
+                    padding: 4,
+                  }}
+                >
+                  <Icon name="close" size={16} weight={350} color="currentColor" />
+                </button>
+              </>
+            )}
           </li>
         ))}
       </ul>
@@ -210,30 +279,29 @@ function HistoryCard({ day }: { day: HistoryDay }) {
   );
 }
 
-function UpgradeCard() {
-  return (
-    <section aria-labelledby="upgrade-title" style={{ display: "grid", gap: 12 }}>
-      <h2 id="upgrade-title" style={sectionTitleStyle}>
-        きのうまでの記録
-      </h2>
-      <div style={{ ...cardStyle, gap: 16 }}>
-        <p style={{ fontSize: 15, lineHeight: 1.7, margin: 0 }}>きのうまでの記録は Pro で見られます。</p>
-        <ul style={{ display: "grid", gap: 10, listStyle: "none", margin: 0, padding: 0 }}>
-          {["日付ごとの履歴", "実績レポートと達成率", "見積もりの提案"].map((item) => (
-            <li key={item} style={{ alignItems: "center", display: "flex", fontSize: 14, gap: 10 }}>
-              <Icon name="check_circle" size={18} weight={350} fill={1} color="var(--accent)" />
-              <span>{item}</span>
-            </li>
-          ))}
-        </ul>
-        <Link href="/screen-6" style={proLinkStyle}>
-          <span>Fin Pro について</span>
-          <Icon name="arrow_forward" size={18} weight={350} color="var(--fg-42)" />
-        </Link>
-      </div>
-    </section>
-  );
-}
+const historyCancelButtonStyle: CSSProperties = {
+  background: "transparent",
+  border: "1px solid var(--fg-14)",
+  borderRadius: 999,
+  color: "var(--fg-60)",
+  cursor: "pointer",
+  font: "inherit",
+  fontSize: 12.5,
+  fontWeight: 600,
+  padding: "5px 9px",
+};
+
+const historyDeleteButtonStyle: CSSProperties = {
+  background: "#b85c55",
+  border: "1px solid #b85c55",
+  borderRadius: 999,
+  color: "#fff",
+  cursor: "pointer",
+  font: "inherit",
+  fontSize: 12.5,
+  fontWeight: 650,
+  padding: "5px 9px",
+};
 
 /** 「1時間5分」「25分」の形。 */
 function formatDuration(milliseconds: number) {
@@ -266,15 +334,3 @@ const backLinkStyle: CSSProperties = {
   textDecoration: "none",
 };
 
-const proLinkStyle: CSSProperties = {
-  alignItems: "center",
-  background: "var(--bg)",
-  borderRadius: 14,
-  color: "var(--fg)",
-  display: "flex",
-  fontSize: 14,
-  fontWeight: 650,
-  justifyContent: "space-between",
-  padding: "14px 16px",
-  textDecoration: "none",
-};

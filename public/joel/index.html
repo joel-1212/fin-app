@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>joel — 毎日を、ほんの少し軽くする道具を。</title>
+<meta name="description" content="個人でアプリを作っています。大きな機能は載せません。ひとつの困りごとに、ひとつの道具を。Fin／ぽてまる／未来メーター、すべて日本語・iPhone。">
+<meta property="og:title" content="joel — 毎日を、ほんの少し軽くする道具を。">
+<meta property="og:description" content="個人でアプリを作っています。ひとつの困りごとに、ひとつの道具を。">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,900;1,9..144,600&family=Noto+Serif+JP:wght@500;700;900&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<script>document.documentElement.className="js";</script>
+<style>
+:root{
+  --forest:#1e3932;
+  --green:#00754a;
+  --green-d:#005c3a;
+  --cream:#f3f1e9;
+  --paper:#fffdf6;
+  --mist:#d4e9e2;
+  --sub:#5a6f68;
+  --line:#e3dfd0;
+  --serif:"Fraunces","Noto Serif JP",serif;
+  --sans:"Noto Sans JP",sans-serif;
+  --r:18px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--cream);color:var(--forest);font-family:var(--sans);
+     font-size:16px;line-height:1.9;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+a{color:inherit;text-decoration:none}
+.wrap{max-width:1060px;margin:0 auto;padding:0 24px}
+
+/* ─── ヘッダー ─── */
+.nav{position:sticky;top:0;z-index:50;background:rgba(243,241,233,.86);
+     backdrop-filter:saturate(150%) blur(10px);border-bottom:1px solid var(--line)}
+.nav .wrap{display:flex;align-items:center;justify-content:space-between;height:64px}
+.mark{display:flex;align-items:center;gap:10px;font-family:var(--serif);font-weight:900;
+      font-size:17px;letter-spacing:.01em}
+.mark .dot{width:28px;height:28px;border-radius:50%;background:var(--forest);color:var(--cream);
+      display:grid;place-items:center;font-size:14px;font-weight:600}
+.nav ul{display:flex;gap:26px;list-style:none;font-size:13.5px;font-weight:500}
+.nav ul a{position:relative;padding-bottom:3px}
+.nav ul a::after{content:"";position:absolute;left:0;bottom:0;height:1.5px;width:0;
+      background:var(--green);transition:width .34s cubic-bezier(.2,.8,.2,1)}
+.nav ul a:hover::after{width:100%}
+@media(max-width:640px){.nav ul{display:none}}
+
+/* ─── 扉＝選ばせる画面（最初に出るのはこれ） ─── */
+.hero{min-height:calc(100svh - 64px);display:flex;align-items:center;
+      padding:clamp(34px,5vw,56px) 0;position:relative;overflow:hidden}
+.hero::after{content:"";position:absolute;right:-150px;top:-110px;width:520px;height:520px;
+  border-radius:50%;background:var(--mist);opacity:.5;z-index:-1}
+.hero::before{content:"";position:absolute;left:-190px;bottom:-210px;width:430px;height:430px;
+  border-radius:50%;background:var(--paper);opacity:.85;z-index:-1}
+.eyebrow{font-size:11.5px;letter-spacing:.3em;color:var(--green);font-weight:700}
+h1{font-family:var(--serif);font-weight:900;font-size:clamp(28px,5vw,50px);
+   line-height:1.45;letter-spacing:-.005em;margin-top:16px}
+h1 em{font-style:italic;font-weight:600;color:var(--green)}
+.lede{margin-top:16px;max-width:32em;color:var(--sub);font-size:14.5px;line-height:2}
+
+/* 大きな選択ボタン */
+.picks{margin-top:clamp(26px,3.4vw,38px);display:grid;gap:11px;max-width:760px}
+.pick{display:flex;align-items:center;gap:16px;background:var(--paper);
+  border:1.5px solid var(--line);border-radius:var(--r);padding:clamp(18px,2.4vw,24px) clamp(20px,2.6vw,28px);
+  transition:transform .34s cubic-bezier(.2,.8,.2,1),border-color .3s ease,box-shadow .34s ease,background .3s ease}
+.pick .t{flex:1;font-size:clamp(15px,2.1vw,17.5px);font-weight:700;line-height:1.6}
+.pick .w{background:var(--mist);color:var(--forest);border-radius:999px;padding:5px 14px;
+      font-size:11.5px;font-weight:700;white-space:nowrap;transition:background .3s ease,color .3s ease}
+.pick .ar{color:var(--green);font-size:17px;transition:transform .34s cubic-bezier(.2,.8,.2,1)}
+.pick:hover{transform:translateY(-3px);border-color:var(--green);background:#fff;
+  box-shadow:0 14px 30px rgba(30,57,50,.11)}
+.pick:hover .ar{transform:translateX(6px)}
+.pick:hover .w{background:var(--green);color:#fff}
+@media(max-width:560px){.pick{flex-wrap:wrap;gap:10px}.pick .t{flex-basis:100%}}
+.facts{display:flex;flex-wrap:wrap;gap:9px;margin-top:24px}
+.fact{background:transparent;border:1px solid var(--line);border-radius:999px;
+      padding:7px 15px;font-size:12px;font-weight:700;color:var(--sub)}
+.fact.on{background:var(--forest);color:var(--cream);border-color:var(--forest)}
+
+/* ─── 索引 ─── */
+section{padding:clamp(52px,7vw,92px) 0}
+.label{display:flex;align-items:center;gap:14px;font-size:11px;letter-spacing:.3em;
+       color:var(--green);font-weight:700}
+.label::after{content:"";flex:1;height:1px;background:var(--line)}
+h2{font-family:var(--serif);font-weight:900;font-size:clamp(23px,3.6vw,34px);
+   line-height:1.6;margin:20px 0 8px}
+.sub{color:var(--sub);font-size:14.5px;max-width:34em}
+.qs{margin-top:30px;display:grid;gap:11px}
+.q{display:flex;align-items:center;gap:16px;background:var(--paper);border:1px solid var(--line);
+   border-radius:var(--r);padding:19px 22px;transition:transform .34s cubic-bezier(.2,.8,.2,1),
+   border-color .3s ease,box-shadow .34s ease}
+.q:hover{transform:translateY(-3px);border-color:var(--green);box-shadow:0 12px 26px rgba(30,57,50,.09)}
+.q .t{flex:1;font-size:clamp(14px,2vw,16px);font-weight:500}
+.q .w{background:var(--mist);color:var(--forest);border-radius:999px;padding:5px 14px;
+      font-size:11.5px;font-weight:700;white-space:nowrap}
+.q .ar{color:var(--green);font-size:15px;transition:transform .34s cubic-bezier(.2,.8,.2,1)}
+.q:hover .ar{transform:translateX(5px)}
+@media(max-width:560px){.q{flex-wrap:wrap;gap:10px}.q .t{flex-basis:100%}}
+
+/* ─── アプリ ─── */
+.app{scroll-margin-top:78px;border-radius:26px;padding:clamp(30px,4.4vw,54px);
+     background:var(--paper);border:1px solid var(--line);margin-bottom:20px}
+.app.dark{background:var(--forest);color:var(--cream);border-color:var(--forest)}
+.app.dark .sub,.app.dark p{color:#b9cdc6}
+.app.dark .an{color:var(--cream)}
+.app.dark .at{color:#8fd6b4}
+.app.dark .who{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.14)}
+.app.dark .who h4{color:#8fd6b4}
+.app.dark .who li{color:#cfe0da;border-color:rgba(255,255,255,.1)}
+.app.dark .cta{background:var(--mist);color:var(--forest)}
+.app.dark .cta:hover{background:#fff}
+.top{display:flex;align-items:flex-start;gap:16px}
+.badge{font-family:var(--serif);font-weight:900;font-size:13px;color:var(--green);
+       border:1.5px solid currentColor;border-radius:999px;width:34px;height:34px;
+       display:grid;place-items:center;flex:none;margin-top:6px}
+.app.dark .badge{color:#8fd6b4}
+.an{font-family:var(--serif);font-weight:900;font-size:clamp(26px,4.2vw,40px);line-height:1.3}
+.at{color:var(--green);font-size:12.5px;letter-spacing:.16em;font-weight:700;margin-top:7px}
+.grid{margin-top:26px;display:grid;grid-template-columns:1.08fr .92fr;gap:clamp(26px,3.4vw,44px);align-items:start}
+@media(max-width:760px){.grid{grid-template-columns:1fr;gap:26px}}
+.shot{margin:0;border-radius:20px;overflow:hidden;border:1px solid var(--line);
+      background:var(--cream);line-height:0;
+      transition:transform .5s cubic-bezier(.2,.8,.2,1),box-shadow .5s ease}
+.shot img{width:100%;height:auto;display:block}
+.shot:hover{transform:translateY(-5px);box-shadow:0 22px 44px rgba(30,57,50,.16)}
+.app.dark .shot{border-color:rgba(255,255,255,.16);background:rgba(255,255,255,.05)}
+.cap{margin-top:10px;font-size:11.5px;color:var(--sub);letter-spacing:.06em;line-height:1.7}
+.app.dark .cap{color:#9ec0b6}
+.grid p{color:var(--sub);font-size:14.5px}
+.grid p b{color:inherit;font-weight:700}
+.app.dark .grid p b{color:#fff}
+.who{background:var(--cream);border:1px solid var(--line);border-radius:var(--r);padding:20px 22px}
+.who h4{font-size:10.5px;letter-spacing:.22em;color:var(--green);font-weight:700;margin-bottom:12px}
+.who li{list-style:none;font-size:14px;color:var(--sub);padding:8px 0;border-bottom:1px solid var(--line)}
+.who li:last-child{border:0}
+.cta{display:inline-flex;align-items:center;gap:10px;margin-top:26px;background:var(--green);
+     color:#fff;border-radius:999px;padding:14px 28px;font-size:13.5px;font-weight:700;
+     letter-spacing:.04em;transition:background .3s ease,transform .3s cubic-bezier(.2,.8,.2,1)}
+.cta:hover{background:var(--green-d);transform:translateY(-2px)}
+
+/* ─── 開発者向け ─── */
+.dev{background:var(--paper);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.cards{margin-top:28px;display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:760px){.cards{grid-template-columns:1fr}}
+.card{background:var(--cream);border:1px solid var(--line);border-radius:var(--r);padding:26px;
+      transition:transform .34s cubic-bezier(.2,.8,.2,1),border-color .3s ease}
+.card:hover{transform:translateY(-4px);border-color:var(--green)}
+.card h5{font-family:var(--serif);font-weight:900;font-size:19px;margin-bottom:9px}
+.card p{color:var(--sub);font-size:14px}
+.card .go{display:inline-block;margin-top:15px;font-size:12.5px;font-weight:700;color:var(--green)}
+
+footer{padding:44px 0 66px;font-size:12.5px;color:var(--sub)}
+footer .wrap{display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px}
+
+/* ─── 動き ─── */
+.js .rise{opacity:0;transform:translateY(20px);
+  transition:opacity .85s cubic-bezier(.2,.8,.2,1),transform .85s cubic-bezier(.2,.8,.2,1)}
+.js .rise.on{opacity:1;transform:none}
+.js .hero .rise{transition-delay:calc(var(--i,0) * 105ms)}
+@media(prefers-reduced-motion:reduce){.js .rise{opacity:1;transform:none;transition:none}html{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+
+<nav class="nav"><div class="wrap">
+  <a class="mark" href="#top"><span class="dot">j</span>joel</a>
+  <ul>
+    <li><a href="#top">選びなおす</a></li>
+    <li><a href="#fin">Fin</a></li>
+    <li><a href="#potemaru">ぽてまる</a></li>
+    <li><a href="#mirai">未来メーター</a></li>
+    <li><a href="#dev">開発の記録</a></li>
+  </ul>
+</div></nav>
+
+<header class="hero" id="top"><div class="wrap">
+  <div class="eyebrow rise" style="--i:0">JOEL — 個人でアプリを作っています</div>
+  <h1 class="rise" style="--i:1">いま、いちばん<em>困っている</em>のは<br>どれですか。</h1>
+  <p class="lede rise" style="--i:2">
+    ひとつ選ぶと、あなたに合ったアプリの説明にうつります。<br>
+    <b>ひとつの困りごとに、ひとつの道具を。</b>
+  </p>
+  <div class="picks">
+    <a class="pick rise" style="--i:3" href="#fin"><span class="t">やることが多すぎて、かえって手が止まる。</span><span class="w">Fin</span><span class="ar">→</span></a>
+    <a class="pick rise" style="--i:4" href="#potemaru"><span class="t">最近ぜんぜん歩いていない気がする。</span><span class="w">ぽてまる</span><span class="ar">→</span></a>
+    <a class="pick rise" style="--i:5" href="#mirai"><span class="t">続けても、意味があるのか分からなくなる。</span><span class="w">未来メーター</span><span class="ar">→</span></a>
+    <a class="pick rise" style="--i:6" href="#dev"><span class="t">どれでもなく、開発の進め方が知りたい。</span><span class="w">開発の記録</span><span class="ar">→</span></a>
+  </div>
+  <div class="facts rise" style="--i:7">
+    <span class="fact on">公開中 3本</span>
+    <span class="fact">最新 2026.08</span>
+    <span class="fact">iOS ／ すべて日本語</span>
+  </div>
+</div></header>
+
+<section><div class="wrap">
+
+  <article class="app rise" id="fin">
+    <div class="top"><span class="badge">01</span><div>
+      <div class="an">Fin</div><div class="at">やることを、5分に割る</div></div></div>
+    <div class="grid">
+      <div>
+        <p>やることが多いときに動けなくなるのは、量が多いからではなく、
+        <b>最初の一手が大きすぎる</b>からだと思っています。<br><br>
+        Fin は、ひとつのタスクを「いま5分でできること」まで分けます。
+        分けたら、<b>そのうちのひとつだけ</b>を表示します。次の予定は見せません。
+        終わったら、また次を出します。</p>
+        <div class="who"><h4>こういう方に</h4><ul>
+        <li>リストが長くなると、開かなくなる</li>
+        <li>「あとでやる」が積み上がっている</li>
+        <li>始めさえすれば、進むほうだ</li>
+      </ul></div>
+        <a class="cta" href="https://apps.apple.com/jp/app/fin/id6797369393" target="_blank" rel="noopener">App Store で見る →</a>
+      </div>
+      <figure class="shot"><img src="img/fin.jpg" width="760" height="1645" loading="lazy" alt="Fin のホーム画面。ぜんぶ終わる時刻と、いま出ている一手。"></figure>
+    </div>
+  </article>
+
+  <article class="app rise" id="potemaru">
+    <div class="top"><span class="badge">02</span><div>
+      <div class="an">ぽてまる</div><div class="at">歩くほど、育つ</div></div></div>
+    <div class="grid">
+      <div>
+        <p>歩数計は数えてくれますが、<b>数えられても、歩きたくはなりません。</b><br><br>
+        ぽてまるは、あなたの歩数でいきものが育ちます。
+        歩かない日が続くと、まるくなります。怒りはしません。
+        <b>サボっても、罰は出ません。</b>減った日はただ、まるくなるだけです。</p>
+        <div class="who"><h4>こういう方に</h4><ul>
+        <li>歩数計は入れたが、開かなくなった</li>
+        <li>厳しく管理されるのは向いていない</li>
+        <li>3,000歩でも「歩いた」と言いたい</li>
+      </ul></div>
+        <a class="cta" href="https://apps.apple.com/jp/app/id6799363502" target="_blank" rel="noopener">App Store で見る →</a>
+      </div>
+      <figure class="shot"><img src="img/potemaru.jpg" width="760" height="1645" loading="lazy" alt="ぽてまるのホーム。歩数でいきものの体型が変わります。"></figure>
+    </div>
+  </article>
+
+  <article class="app dark rise" id="mirai">
+    <div class="top"><span class="badge">03</span><div>
+      <div class="an">未来メーター</div><div class="at">今日のぶんが、1年後になる</div></div></div>
+    <div class="grid">
+      <div>
+        <p>続かない理由の多くは、意志ではなく<b>手ごたえが見えないこと</b>だと思っています。<br><br>
+        未来メーターは、今日やったぶんをそのまま1年に伸ばして見せます。
+        今日10分読んだなら、1年で何冊ぶんか。今日歩いたぶんは、1年でどこまで行けるのか。
+        <b>点数もランクも付けません。</b><br><br>続けた記録からは、<b>習慣として定着するまであと何日か</b>も出します。よく切れる曜日や、つまずきやすい日も一緒に。</p>
+        <div class="who"><h4>こういう方に</h4><ul>
+        <li>三日坊主を、何度もくり返している</li>
+        <li>記録は付けるが、見返さない</li>
+        <li>順位や連続日数で追われたくない</li>
+      </ul></div>
+        <a class="cta" href="https://apps.apple.com/jp/app/id6799634255" target="_blank" rel="noopener">App Store で見る →</a>
+      </div>
+      <figure class="shot"><img src="img/mirai.jpg" width="760" height="1645" loading="lazy" alt="未来メーターの分析画面。習慣として定着するまであと何日かが出ます。"></figure>
+    </div>
+  </article>
+
+</div></section>
+
+<section class="dev" id="dev"><div class="wrap">
+  <div class="label rise">FOR MAKERS</div>
+  <h2 class="rise">作り方も、失敗も、そのまま置いています。</h2>
+  <p class="sub rise">ひとりでアプリを作って出すまでに、何をどう間違えたか。審査に落ちた理由、
+    公開して何日でどれだけ届いたか。<b>うまくいった話だけを書かない</b>ようにしています。</p>
+  <div class="cards">
+    <a class="card rise" href="https://note.com/joel_dev" target="_blank" rel="noopener">
+      <h5>開発の記録</h5>
+      <p>企画から公開までの過程と、そのあとの数字を書いています。うまくいかなかったぶんも含めて。</p>
+      <span class="go">note を見る →</span>
+    </a>
+    <a class="card rise" href="https://github.com/joel-1212/fin-app" target="_blank" rel="noopener">
+      <h5>ソースコード</h5>
+      <p>Fin は全部公開しています。Next.js と Capacitor で作った、ひとりで回すための構成です。</p>
+      <span class="go">GitHub を見る →</span>
+    </a>
+  </div>
+</div></section>
+
+<footer><div class="wrap">
+  <span>joel — 個人でアプリを作っています</span>
+  <span>2026</span>
+</div></footer>
+
+<script>
+(function(){
+  var io=new IntersectionObserver(function(es){
+    es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('on'); io.unobserve(e.target); } });
+  },{threshold:.1,rootMargin:'0px 0px -5% 0px'});
+  document.querySelectorAll('.rise').forEach(function(el){ io.observe(el); });
+  requestAnimationFrame(function(){
+    document.querySelectorAll('.hero .rise').forEach(function(el){ el.classList.add('on'); });
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,12 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { Icon } from "@/components/Icon";
 import { DurationWheel } from "@/components/DurationWheel";
-import { getProStatus } from "@/lib/entitlement";
-import { canSaveTemplate, readTaskTemplates, saveTaskTemplate, type TaskTemplate } from "@/lib/task-templates";
-import { selectTaskNameSuggestions } from "@/lib/task-history";
+import type { TaskStatus } from "@/lib/task-state";
+import {
+  findTemplateToOverwrite,
+  readTaskTemplates,
+  saveTaskTemplate,
+  type TaskTemplate,
+} from "@/lib/task-templates";
+import {
+  addSuggestionExclusion,
+  clearSuggestionExclusion,
+  readSuggestionExclusions,
+  selectTaskNameSuggestions,
+} from "@/lib/task-history";
 import { useTaskStore } from "@/app/providers";
 
 export type TaskAddInput = {
@@ -18,7 +27,9 @@ export type TaskAddInput = {
 
 export type TaskEditTarget = TaskAddInput & {
   id: string;
-  status: "idle" | "running" | "paused" | "completed";
+  // ステータス集合を書き写さず正本から取る。書き写すと、状態が増えたときに
+  // ここだけ古いままになる。
+  status: TaskStatus;
 };
 
 type TaskAddSheetProps = {
@@ -51,11 +62,20 @@ export function TaskAddSheet({ open, onClose, onSubmit, task, onDelete }: TaskAd
   const [subtasks, setSubtasks] = useState<string[]>([]);
   const [deleteConfirmation, setDeleteConfirmation] = useState(false);
   const [templates, setTemplates] = useState<TaskTemplate[]>([]);
-  const [isPro, setIsPro] = useState(false);
+  const [excludedSuggestions, setExcludedSuggestions] = useState<string[]>([]);
   const isEditing = task !== undefined;
   const { state: taskState } = useTaskStore();
+  const trimmedTemplateName = name.trim();
+  // 保存上限は撤廃済み（2026-08-19 F1）。名前さえあれば保存できる。
+  const templateOverwriteTarget =
+    trimmedTemplateName === ""
+      ? undefined
+      : findTemplateToOverwrite(templates, { name: trimmedTemplateName, min });
+  const templateSaveAllowed = trimmedTemplateName !== "";
   // テンプレートは「保存して呼び出す」もの、これは「前に入力した名前」を検索履歴のように出すもの。編集中は出さない。
-  const nameSuggestions = isEditing ? [] : selectTaskNameSuggestions(taskState, { query: name });
+  const nameSuggestions = isEditing
+    ? []
+    : selectTaskNameSuggestions(taskState, { query: name, excluded: excludedSuggestions });
 
   useEffect(() => {
     if (!open) return;
@@ -66,6 +86,7 @@ export function TaskAddSheet({ open, onClose, onSubmit, task, onDelete }: TaskAd
     setSubtaskDraft("");
     setSubtasks(task?.subtasks ?? []);
     setDeleteConfirmation(false);
+    setExcludedSuggestions(readSuggestionExclusions());
   }, [open, task]);
 
   useEffect(() => {
@@ -75,13 +96,6 @@ export function TaskAddSheet({ open, onClose, onSubmit, task, onDelete }: TaskAd
     }
 
     setTemplates(readTaskTemplates());
-    let cancelled = false;
-    void getProStatus().then((status) => {
-      if (!cancelled) setIsPro(status === "pro");
-    });
-    return () => {
-      cancelled = true;
-    };
   }, [open, isEditing]);
 
   useEffect(() => {
@@ -119,8 +133,8 @@ export function TaskAddSheet({ open, onClose, onSubmit, task, onDelete }: TaskAd
   }
 
   function saveCurrentAsTemplate() {
+    if (!templateSaveAllowed) return;
     const trimmedName = name.trim();
-    if (!trimmedName || !canSaveTemplate(templates.length, isPro)) return;
 
     setTemplates(
       saveTaskTemplate({
@@ -136,6 +150,9 @@ export function TaskAddSheet({ open, onClose, onSubmit, task, onDelete }: TaskAd
     event.preventDefault();
     const trimmedName = name.trim();
     if (!trimmedName) return;
+
+    // 消した候補と同じ名前をまた使ったなら、次からは候補に戻す。
+    clearSuggestionExclusion(trimmedName);
 
     onSubmit({
       name: trimmedName,
@@ -354,25 +371,54 @@ export function TaskAddSheet({ open, onClose, onSubmit, task, onDelete }: TaskAd
               }}
             >
               {nameSuggestions.map((suggestion) => (
-                <button
+                <span
                   key={suggestion}
-                  type="button"
-                  onClick={() => setName(suggestion)}
-                  aria-label={`${suggestion} \u3092\u540d\u524d\u306b\u5165\u308c\u308b`}
                   style={{
-                    borderRadius: 999,
-                    border: "none",
+                    alignItems: "center",
                     background: "var(--hover)",
+                    borderRadius: 999,
                     color: "var(--fg-50)",
-                    padding: "6px 11px",
-                    font: "inherit",
-                    fontSize: 12,
-                    fontWeight: 500,
-                    cursor: "pointer",
+                    display: "inline-flex",
+                    gap: 2,
+                    paddingRight: 4,
                   }}
                 >
-                  {suggestion}
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setName(suggestion)}
+                    aria-label={`${suggestion} \u3092\u540d\u524d\u306b\u5165\u308c\u308b`}
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      borderRadius: 999,
+                      color: "inherit",
+                      cursor: "pointer",
+                      font: "inherit",
+                      fontSize: 12,
+                      fontWeight: 500,
+                      padding: "6px 0 6px 11px",
+                    }}
+                  >
+                    {suggestion}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setExcludedSuggestions(addSuggestionExclusion(suggestion))}
+                    aria-label={`${suggestion} \u3092\u5019\u88dc\u304b\u3089\u6d88\u3059`}
+                    style={{
+                      alignItems: "center",
+                      background: "transparent",
+                      border: "none",
+                      borderRadius: 999,
+                      color: "var(--fg-42)",
+                      cursor: "pointer",
+                      display: "inline-flex",
+                      padding: "6px 6px",
+                    }}
+                  >
+                    <Icon name="close" size={13} weight={350} color="currentColor" />
+                  </button>
+                </span>
               ))}
             </div>
           )}
@@ -547,7 +593,7 @@ export function TaskAddSheet({ open, onClose, onSubmit, task, onDelete }: TaskAd
               <button
                 type="button"
                 onClick={saveCurrentAsTemplate}
-                disabled={!name.trim() || !canSaveTemplate(templates.length, isPro)}
+                disabled={!templateSaveAllowed}
                 style={{
                   width: "100%",
                   border: "1px solid var(--fg-14)",
@@ -558,20 +604,12 @@ export function TaskAddSheet({ open, onClose, onSubmit, task, onDelete }: TaskAd
                   font: "inherit",
                   fontSize: 14,
                   fontWeight: 600,
-                  cursor: !name.trim() || !canSaveTemplate(templates.length, isPro) ? "default" : "pointer",
-                  opacity: !name.trim() || !canSaveTemplate(templates.length, isPro) ? 0.5 : 1,
+                  cursor: templateSaveAllowed ? "pointer" : "default",
+                  opacity: templateSaveAllowed ? 1 : 0.5,
                 }}
               >
-                {"テンプレートとして保存"}
+                {templateOverwriteTarget ? "テンプレートを上書きする" : "テンプレートとして保存"}
               </button>
-              {!canSaveTemplate(templates.length, isPro) && (
-                <p style={{ margin: "8px 2px 0", fontSize: 12.5, lineHeight: 1.6, color: "var(--fg-45)" }}>
-                  無料プランではテンプレートを3つまで保存できます{" "}
-                  <Link href="/screen-6" style={{ color: "var(--fg-45)", textDecoration: "underline" }}>
-                    有料プランについて
-                  </Link>
-                </p>
-              )}
             </div>
           )}
 

@@ -7,13 +7,30 @@ type TaskTemplateEnvelope = { schemaVersion: 1; templates: TaskTemplate[] };
 const STORAGE_KEY = "fin.task-templates";
 const SCHEMA_VERSION = 1;
 
-/** 無料プランで保存できるテンプレート数の上限。 */
-export const FREE_TEMPLATE_LIMIT = 3;
+/**
+ * 保存上限は 2026-08-19 のオーナー壁打ち（F1）で撤廃した。無料でも無制限。
+ * 呼び出し側を壊さないよう関数の形だけ残してある（isPro は判定に使わない）。
+ */
+export function canSaveTemplate(_count: number, _isPro: boolean): boolean {
+  return true;
+}
 
-/** UI 側からブリッジなしで判定できるよう、純粋関数として切り出す。 */
-export function canSaveTemplate(count: number, isPro: boolean): boolean {
-  if (isPro) return true;
-  return count < FREE_TEMPLATE_LIMIT;
+/** 同名かつ同じ所要時間なら、保存は追加ではなく上書きになる（`saveTaskTemplate` と同じ判定）。 */
+export function findTemplateToOverwrite(
+  templates: TaskTemplate[],
+  input: Pick<TaskAddInput, "name" | "min">,
+): TaskTemplate | undefined {
+  return templates.find((template) => template.name === input.name && template.min === input.min);
+}
+
+/** 上限撤廃後は常に保存できる。呼び出し側を壊さないよう形だけ残す。 */
+export function canSaveTemplateInput(
+  templates: TaskTemplate[],
+  input: Pick<TaskAddInput, "name" | "min">,
+  isPro: boolean,
+): boolean {
+  if (findTemplateToOverwrite(templates, input) !== undefined) return true;
+  return canSaveTemplate(templates.length, isPro);
 }
 
 function isTaskTemplate(value: unknown): value is TaskTemplate {

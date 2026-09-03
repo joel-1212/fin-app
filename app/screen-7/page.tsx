@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { writeOnboardingCompleted } from "@/lib/onboarding";
 
 const tasks = [
   { duration: "10m", title: "\u30e1\u30fc\u30eb\u3092\u78ba\u8a8d\u3059\u308b" },
@@ -198,7 +199,9 @@ export default function Screen7Page() {
         <button
           type="button"
           onClick={() => {
-            window.localStorage.setItem("fin-onboarded", "1");
+            // 保存に失敗しても先へ進める。ここで止めると、ストレージが使えない端末では
+            // 「始める」を押しても何も起きないアプリになる。
+            writeOnboardingCompleted();
             router.push("/");
           }}
           style={{

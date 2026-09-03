@@ -7,12 +7,17 @@ workflows:
       # 名前は Codemagic 上の登録名で、実体はこの Apple Team のキー。
       app_store_connect: MusicDNA ASC
     environment:
+      # テストは lib/*.ts を直接 import する（node --test の型ストリッピング頼み）。
+      # これが既定で有効なのは Node 23.6 以降なので、ビルドマシンの既定任せにすると
+      # 検証ステップが環境次第で落ちる。開発機と同じ系列に固定する。
+      node: 24
       groups:
         # APPLE_CERT_PRIVATE_KEY を保持する。署名証明書の作成・保存に必要。
         # 名前が重複しているのは Codemagic 側の登録時の入力ミス由来。実体に合わせている。
         - fin_apple_credentialsfin_apple_credentials
       vars:
         BUNDLE_ID: app.fin
+        MARKETING_VERSION: "1.1"
         XCODE_PROJECT: ios/App/App.xcodeproj
         # Capacitor は CocoaPods を使うため、ビルドは workspace 側で行う。
         XCODE_WORKSPACE: ios/App/App.xcworkspace
@@ -20,6 +25,14 @@ workflows:
     scripts:
       - name: Install dependencies
         script: npm ci --ignore-scripts
+      - name: Verify the web app before building anything native
+        # このワークフローは web を placeholder ディレクトリで済ませるため、
+        # 型エラーやテスト失敗があっても署名済み IPA が出て App Store Connect に載る。
+        # 壊れたコードがバイナリになる前に、ここで止める。依存はすでに入っている。
+        script: |
+          set -e
+          npm run typecheck
+          npm test
       - name: Create capacitor-www placeholder
         script: mkdir -p capacitor-www
       - name: Add or sync iOS platform
@@ -29,6 +42,16 @@ workflows:
           else
             npx cap add ios
           fi
+      - name: Raise minimum iOS version to 15.0
+        # ITMS-90068 対応（2026-08-05 build 8 で Apple 警告）: Capacitor 生成時の既定 14.0 の
+        # ままだと Spring 2027 以降アップロード不可になる。ios/ は毎ビルド生成のためここで書き換える。
+        # ぐるりタイマー（打席2号）で先に恒久対応した内容をそのまま移植。
+        script: |
+          set -e
+          sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = [0-9.]*/IPHONEOS_DEPLOYMENT_TARGET = 15.0/g' ios/App/App.xcodeproj/project.pbxproj
+          sed -i '' "s/platform :ios, '[0-9.]*'/platform :ios, '15.0'/" ios/App/Podfile
+          grep -m1 "IPHONEOS_DEPLOYMENT_TARGET" ios/App/App.xcodeproj/project.pbxproj
+          grep -m1 "platform :ios" ios/App/Podfile
       - name: Install the app icon into the generated iOS project
         # ios/ は毎ビルド生成し直されるため、放置すると Capacitor のプレースホルダー
         # アイコンのまま提出されてしまう。生成された AppIcon セットの各スロットを、
@@ -72,6 +95,18 @@ workflows:
             || /usr/libexec/PlistBuddy \
               -c "Set :ITSAppUsesNonExemptEncryption false" \
               ios/App/App/Info.plist
+      - name: Declare the notifications purpose string in Info.plist
+        # iOS 26 の実機で UNUserNotificationCenter 系の呼び出しが一切返らない症状の対策。
+        # 通知の利用目的文字列が無いことが原因の可能性があるため、輸出コンプライアンスと
+        # 同じ方法で毎ビルド書き込む。害はなく、あって困ることのないキー。
+        script: |
+          PURPOSE="実行中のタスクの見積もり時刻をお知らせするために通知を使います。"
+          /usr/libexec/PlistBuddy \
+            -c "Add :NSUserNotificationsUsageDescription string $PURPOSE" \
+            ios/App/App/Info.plist \
+            || /usr/libexec/PlistBuddy \
+              -c "Set :NSUserNotificationsUsageDescription $PURPOSE" \
+              ios/App/App/Info.plist
       - name: Set a build number above the last uploaded one
         # ios/ は毎ビルド生成し直され、Capacitor の既定は常に 1 になる。
         # App Store Connect は同じビルド番号のアップロードを拒否するため、
@@ -82,6 +117,15 @@ workflows:
           cd ios/App
           agvtool new-version -all "$BUILD_NUMBER"
           agvtool what-version
+      - name: Set the marketing version to match the ASC version
+        # ios/ は毎ビルド生成し直されるため CFBundleShortVersionString が Capacitor の
+        # 既定（1.0）に戻る。ASC の 1.1 に添付するには、ここで一致させる必要がある。
+        # 設定して終わりにせず、一致を検証してから先へ進む。
+        script: |
+          set -e
+          cd ios/App
+          agvtool new-marketing-version "$MARKETING_VERSION"
+          test "$(agvtool what-marketing-version -terse1)" = "$MARKETING_VERSION"             || { echo "marketing version が $MARKETING_VERSION になっていない"; exit 1; }
       - name: Install CocoaPods dependencies
         # npm ci は --ignore-scripts のため pod install が走らない。ここで明示的に入れる。
         script: |
@@ -91,6 +135,11 @@ workflows:
         # app.fin のプロビジョニングプロファイルはまだ存在しないため --create で新規作成する。
         # 認証情報は上の app_store_connect 統合から自動的に環境へ渡る。
         script: |
+          set -e
+          # 署名秘密鍵を平文でディスクに置く。既定パーミッションのまま残すと
+          # 以降のステップ（pod install 等、任意のスクリプトが走る）から読める。
+          umask 077
+          trap 'rm -f /tmp/cert_key.pem' EXIT
           keychain initialize
           printf '%s' "$APPLE_CERT_PRIVATE_KEY" > /tmp/cert_key.pem
           app-store-connect fetch-signing-files "$BUNDLE_ID" \

@@ -1,9 +1,13 @@
 /**
  * Capture the real app at App Store / Devpost screenshot size.
  *
- * The store asks for 1179x2556 with no device frame, which is an iPhone 15 Pro
- * viewport (393x852) at 3x. Rendering the running app at that scale gives the
- * actual screen rather than a mockup that drifts from it.
+ * The store only accepts 1284x2778 for the 6.5-inch slot, which is an iPhone 14
+ * Plus viewport (428x926) at 3x. Rendering the running app at that scale gives
+ * the actual screen rather than a mockup that drifts from it.
+ *
+ * The first submission was rejected under Guideline 2.3.3 for shipping hand-built
+ * HTML mockups instead of the app, so every frame here has to come off the real
+ * running app.
  *
  * Usage:
  *   npm run dev            # in another terminal
@@ -14,9 +18,12 @@ import { mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 
 const BASE_URL = process.argv[2] ?? "http://localhost:3000";
-const OUT_DIR = "docs/screenshots/store";
+const OUT_DIR = process.env.SHOT_OUT_DIR ?? "docs/screenshots/store";
 
-const VIEWPORT = { width: 393, height: 852, deviceScaleFactor: 3, isMobile: true, hasTouch: true };
+const VIEWPORT = process.env.SHOT_VIEWPORT === "ipad"
+  // 13-inch iPad slot: 2064x2752 = 1032x1376 at 2x.
+  ? { width: 1032, height: 1376, deviceScaleFactor: 2, isMobile: true, hasTouch: true }
+  : { width: 428, height: 926, deviceScaleFactor: 3, isMobile: true, hasTouch: true };
 
 const CHROME_CANDIDATES = [
   "C:/Program Files/Google/Chrome/Application/chrome.exe",
@@ -33,6 +40,31 @@ const CHROME_CANDIDATES = [
 const STAGED_CLOCK = new Date("2026-08-04T14:20:00+09:00").getTime();
 
 const MINUTE = 60_000;
+const DAY = 24 * 60 * MINUTE;
+
+/**
+ * Pro のふりかえりは「直近7日の実績」「見積もりの提案」「日付ごとの履歴」を
+ * 過去の完了記録から組み立てる。今日の分しかないと三つとも空欄になるので、
+ * 前日以前にも記録を置く。同じ「週報を書く」を2回終えてあるのは、見積もり提案が
+ * 同一タイトル2件以上・見積もりとのズレ20%以上で初めて出るため
+ * （lib/task-report.ts:56-60）。
+ */
+function pastTasks(now) {
+  const done = (id, icon, title, estimate, actual, completedAt) => ({
+    subtasks: [], startedAt: completedAt - actual, runStartedAt: null, deadlineAt: null,
+    remainingMsAtPause: null, accumulatedActiveMs: actual, completionReason: "manual",
+    id, icon, title, estimateMs: estimate, order: 0, status: "completed",
+    createdAt: completedAt - actual - MINUTE, completedAt,
+  });
+  return [
+    done("p1", "description", "週報を書く", 45 * MINUTE, 58 * MINUTE, now - DAY - 120 * MINUTE),
+    done("p2", "menu_book", "論文を1本読む", 60 * MINUTE, 52 * MINUTE, now - DAY - 300 * MINUTE),
+    done("p3", "cleaning_services", "机の上を片づける", 30 * MINUTE, 26 * MINUTE, now - 2 * DAY - 90 * MINUTE),
+    done("p4", "description", "週報を書く", 45 * MINUTE, 57 * MINUTE, now - 2 * DAY - 260 * MINUTE),
+    done("p5", "restaurant", "夕飯をつくる", 40 * MINUTE, 44 * MINUTE, now - 3 * DAY - 80 * MINUTE),
+    done("p6", "mail", "郵便を出す", 10 * MINUTE, 9 * MINUTE, now - 4 * DAY - 200 * MINUTE),
+  ];
+}
 
 function stagedTasks(now) {
   const base = {
@@ -46,6 +78,7 @@ function stagedTasks(now) {
     completionReason: null,
   };
   return [
+    ...pastTasks(now),
     // Two finished this morning, so the report screen has something to report.
     { ...base, id: "a", icon: "mail", title: "郵便を出す", estimateMs: 10 * MINUTE, order: 0,
       status: "completed", createdAt: now - 300 * MINUTE, startedAt: now - 290 * MINUTE,
@@ -72,11 +105,18 @@ function seedValues(now) {
   };
 }
 
+/**
+ * 04 は以前 `/screen-6`（課金ページ）だったが、Guideline 2.3.7 で却下された。
+ * 「無料でできること」「FREE」がそのまま写っており、Apple は無料への言及も
+ * 価格表現として扱う。同じふりかえり画面の Pro 表示に差し替えてある——
+ * 実画面のままで、価格の話がどこにも出ない。
+ * `preview-pro=1` は開発ビルドでのみ効く逃げ道（lib/entitlement.ts:24-32）。
+ */
 const SHOTS = [
   { name: "01-home", path: "/" },
   { name: "02-running", path: "/screen-2?taskId=c" },
   { name: "03-report", path: "/screen-5" },
-  { name: "04-pro", path: "/screen-6" },
+  { name: "04-history", path: "/screen-5?preview-pro=1" },
   { name: "05-settings", path: "/settings" },
 ];
 

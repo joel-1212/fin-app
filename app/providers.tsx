@@ -7,7 +7,7 @@ import {
   selectTaskById,
   taskStateReducer,
   type PersistedTask,
-  type PersistedTaskStateV1,
+  type PersistedTaskState,
   type TaskDraft,
 } from "@/lib/task-state";
 import {
@@ -17,17 +17,19 @@ import {
   TASK_STORAGE_KEY,
   writeTaskState,
 } from "@/lib/task-storage";
+import { mergeTaskStates } from "@/lib/task-merge";
 import {
   getNotificationPermission,
   readNotificationsEnabled,
   syncTaskNotification,
 } from "@/lib/notifications";
 import { initializePurchases } from "@/lib/purchases";
+import { useReviewPrompt } from "./use-review";
 
 type HydrationStatus = "loading" | "ready" | "recovery-required";
 
 type TaskStore = {
-  state: PersistedTaskStateV1;
+  state: PersistedTaskState;
   hydrated: boolean;
   storageError: string | null;
   recoveryRequired: boolean;
@@ -40,6 +42,8 @@ type TaskStore = {
   resumeTask: (taskId: string) => void;
   completeTask: (taskId: string) => void;
   cancelTask: (taskId: string) => void;
+  extendTask: (taskId: string, additionalMs: number) => void;
+  clearHistory: (completedBefore?: number) => void;
   reconcileTimers: (now?: number) => void;
   getTask: (taskId: string | null) => PersistedTask | undefined;
   recoverTaskState: () => void;
@@ -64,6 +68,10 @@ export function TaskProvider({ children }: { children: ReactNode }) {
   const [hydrationStatus, setHydrationStatus] = useState<HydrationStatus>("loading");
   const [storageError, setStorageError] = useState<string | null>(null);
   const lastPersistedAt = useRef<number | null>(null);
+  // storage リスナーを state ごとに張り直すと、その間に届いたイベントを取りこぼす。
+  // 購読は据え置き、最新の state は ref から読む。
+  const stateRef = useRef(state);
+  stateRef.current = state;
   const notificationSyncRevision = useRef(0);
   const storageRef = useRef<Storage | null>(null);
   const runningTask = state.tasks.find((task) => task.status === "running");
@@ -152,14 +160,18 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     const onStorage = (event: StorageEvent) => {
       if (event.key !== TASK_STORAGE_KEY || event.newValue === null) return;
       const decoded = decodeTaskState(event.newValue);
-      if (!decoded.ok || decoded.state.savedAt <= state.savedAt) return;
-      lastPersistedAt.current = decoded.state.savedAt;
-      dispatch({ type: "hydrate", state: taskStateReducer(decoded.state, { type: "reconcile", now: Date.now() }) });
+      if (!decoded.ok) return;
+
+      // 古い到着も捨てない。捨てると相手の変更は次のローカル編集で黙って消える。
+      const merged = mergeTaskStates(stateRef.current, decoded.state);
+      // 受信そのままなら書き戻す必要はない。savedAt を持ち主として記録して保存を止める。
+      if (!merged.changedFromIncoming) lastPersistedAt.current = merged.state.savedAt;
+      dispatch({ type: "hydrate", state: taskStateReducer(merged.state, { type: "reconcile", now: Date.now() }) });
       setStorageError(null);
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
-  }, [hydrationStatus, state.savedAt]);
+  }, [hydrationStatus]);
 
   const addTask = useCallback((input: TaskDraft) => dispatch({ type: "add", id: taskId(), input, now: Date.now() }), []);
   const editTask = useCallback((taskId: string, input: TaskDraft) => dispatch({ type: "edit", taskId, input, now: Date.now() }), []);
@@ -169,6 +181,11 @@ export function TaskProvider({ children }: { children: ReactNode }) {
   const resumeTask = useCallback((taskId: string) => dispatch({ type: "resume", taskId, now: Date.now() }), []);
   const completeTask = useCallback((taskId: string) => dispatch({ type: "complete", taskId, now: Date.now(), reason: "manual" }), []);
   const cancelTask = useCallback((taskId: string) => dispatch({ type: "cancel", taskId, now: Date.now() }), []);
+  const extendTask = useCallback((taskId: string, additionalMs: number) => dispatch({ type: "extend", taskId, additionalMs, now: Date.now() }), []);
+  const clearHistory = useCallback(
+    (completedBefore?: number) => dispatch({ type: "clearHistory", completedBefore, now: Date.now() }),
+    [],
+  );
   const reconcileTimers = useCallback((now = Date.now()) => dispatch({ type: "reconcile", now }), []);
 
   useEffect(() => {
@@ -209,6 +226,10 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     setHydrationStatus("ready");
   }, []);
 
+  // レビュー依頼。全画面が通るのはここだけなので、画面ごとに置かない。
+  // 出す条件は lib/review-prompt.mjs、保存は自分のキー（app/use-review.ts の冒頭に理由）。
+  useReviewPrompt(state.tasks, hydrationStatus === "ready");
+
   const store = useMemo<TaskStore>(
     () => ({
       state,
@@ -224,12 +245,14 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       resumeTask,
       completeTask,
       cancelTask,
+      extendTask,
+      clearHistory,
       reconcileTimers,
       getTask: (taskId) => selectTaskById(state, taskId),
       recoverTaskState,
       resetTaskState: recoverTaskState,
     }),
-    [addTask, cancelTask, completeTask, deleteTask, editTask, hydrationStatus, pauseTask, reconcileTimers, recoverTaskState, resumeTask, startTask, state, storageError],
+    [addTask, cancelTask, clearHistory, completeTask, deleteTask, editTask, extendTask, hydrationStatus, pauseTask, reconcileTimers, recoverTaskState, resumeTask, startTask, state, storageError],
   );
 
   return (

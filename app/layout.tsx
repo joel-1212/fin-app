@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { TaskProvider } from "./providers";
+import { SourceSurvey } from "@/components/SourceSurvey";
 
 const SITE_TITLE = "Fin ー 終わる時間がわかるタスク管理";
 const SITE_DESCRIPTION =
@@ -47,7 +48,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body>
-        <TaskProvider>{children}</TaskProvider>
+        <TaskProvider>
+          {/* 初回起動の1枚目: 流入元アンケート（全アプリ共通・2026-09-03）。答えると消え、次に使い方画面が出る */}
+          <SourceSurvey appName="Fin" />
+          {children}
+        </TaskProvider>
       </body>
     </html>
   );

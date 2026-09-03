@@ -1,4 +1,4 @@
-import type { PersistedTask, PersistedTaskStateV1 } from "./task-state";
+import type { PersistedTask, PersistedTaskState } from "./task-state";
 
 function normalizedNow(now: number): number {
   return Number.isFinite(now) && now >= 0 ? Math.floor(now) : 0;
@@ -13,16 +13,34 @@ export function selectTaskRemainingMs(task: PersistedTask, now: number): number 
       return task.remainingMsAtPause ?? 0;
     case "idle":
       return task.estimateMs;
+    // 見積もりの時間はもう使い切っている。延長すれば running に戻り、その分がここに出る。
+    case "elapsed":
     case "completed":
       return 0;
   }
 }
 
-export function selectTotalRemainingMs(state: PersistedTaskStateV1, now: number): number {
-  return state.tasks.reduce((total, task) => total + selectTaskRemainingMs(task, now), 0);
+/**
+ * 明日以降に置いたタスクは今日の残り時間に入れない（今日の「終わる時刻」を汚さない）。
+ * 判定式の正本は lib/task-state.ts の isPlannedAfterToday。実行時 import を足すと
+ * node --test がこのファイルを直接読むときに拡張子解決で壊れるため、式だけ写している。
+ * 両者の一致は task-time.test.mjs が突き合わせで検証する。
+ */
+function isPlannedAfterToday(task: PersistedTask, now: number): boolean {
+  if (task.plannedFor === undefined) return false;
+  const date = new Date(normalizedNow(now));
+  const today = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  return task.plannedFor > today;
 }
 
-export function selectOverallFinishAt(state: PersistedTaskStateV1, now: number): number {
+export function selectTotalRemainingMs(state: PersistedTaskState, now: number): number {
+  return state.tasks.reduce(
+    (total, task) => (isPlannedAfterToday(task, now) ? total : total + selectTaskRemainingMs(task, now)),
+    0,
+  );
+}
+
+export function selectOverallFinishAt(state: PersistedTaskState, now: number): number {
   return normalizedNow(now) + selectTotalRemainingMs(state, now);
 }
 

@@ -1,4 +1,4 @@
-import { migrateTaskState, type PersistedTaskStateV1, type TaskStateParseResult } from "@/lib/task-state";
+import { migrateTaskState, type PersistedTaskState, type TaskStateParseResult } from "@/lib/task-state";
 
 export const TASK_STORAGE_KEY = "fin.task-state";
 const CORRUPT_TASK_STORAGE_PREFIX = "fin.task-state.corrupt-";
@@ -7,7 +7,7 @@ export type TaskStorage = Pick<Storage, "getItem" | "setItem">;
 
 export type TaskStorageReadResult =
   | { kind: "missing" }
-  | { kind: "valid"; state: PersistedTaskStateV1 }
+  | { kind: "valid"; state: PersistedTaskState }
   | { kind: "unreadable"; reason: "invalid" | "unsupported-schema" | "read-failed" };
 
 export type TaskStorageWriteResult = { ok: true } | { ok: false; reason: "write-failed" };
@@ -34,7 +34,7 @@ export function readTaskState(storage: TaskStorage): TaskStorageReadResult {
   return decoded.ok ? { kind: "valid", state: decoded.state } : { kind: "unreadable", reason: decoded.reason };
 }
 
-export function writeTaskState(storage: TaskStorage, state: PersistedTaskStateV1): TaskStorageWriteResult {
+export function writeTaskState(storage: TaskStorage, state: PersistedTaskState): TaskStorageWriteResult {
   try {
     storage.setItem(TASK_STORAGE_KEY, JSON.stringify(state));
     return { ok: true };
@@ -46,7 +46,7 @@ export function writeTaskState(storage: TaskStorage, state: PersistedTaskStateV1
 /** A user-initiated recovery preserves the unreadable source before replacing it. */
 export function resetTaskState(
   storage: TaskStorage,
-  state: PersistedTaskStateV1,
+  state: PersistedTaskState,
   now = Date.now(),
 ): TaskStorageWriteResult {
   try {

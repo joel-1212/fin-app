@@ -47,6 +47,7 @@ next-env.d.ts
 /docs/APPSTORE.md
 /docs/audit-schedule.md
 /docs/fin-user-acquisition-places.md
+/docs/launch-2026-08-14.md
 /docs/promo-launch.md
 /docs/promo/
 /docs/shipaton-submission.md
@@ -55,6 +56,11 @@ next-env.d.ts
 /.claude/scheduled_tasks.lock
 /docs/appstore-screenshots-prompt.md
 /docs/superpowers/specs/2026-08-02-fin-design.md
+/docs/featuring-nomination.md
+
+# store-frames.mjs writes these next to the shots on every run, with absolute
+# paths to this machine baked in. The PNGs are the deliverable, not the scaffold.
+/docs/screenshots/.framed-*.html
 
 # recording intermediate; the mp4 next to it is the deliverable
 /docs/promo/fin-demo.webm

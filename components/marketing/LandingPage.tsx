@@ -1,9 +1,8 @@
 import styles from "@/app/landing/landing.module.css";
 
-// 審査通過後にストアのページが生きる。App ID は App Store Connect 側で確定済みなので、
-// 公開のたびに書き換える必要はない。未公開の間はリンクを出さない判断が必要になるが、
-// 提出時点でストアのサポート URL からここへ来る導線があるため、文言は「準備中」に留める。
-const appStoreUrl: string | null = null;
+// 2026-08-14 に App Store で公開されたため、実ページへのリンクを出す。
+// 公開の実測確認は docs/launch-2026-08-14.md に記録がある。
+const appStoreUrl: string | null = "https://apps.apple.com/jp/app/fin/id6797369393";
 
 const tasks = [
   { name: "企画のメモを整える", duration: "25分", color: "coral" },
@@ -98,7 +97,7 @@ export function LandingPage() {
                 </span>
               </span>
             )}
-            <p className={styles.ctaNote}>iOS版は現在、App Storeの審査を経て公開の準備を進めています。</p>
+            <p className={styles.ctaNote}>iOS版はApp Storeで公開中です。ブラウザ版はこのままお使いいただけます。</p>
           </div>
         </div>
 
@@ -192,7 +191,7 @@ export function LandingPage() {
         <div className={styles.finalOrb} aria-hidden="true" />
         <p className={styles.sectionLabel}>APP STORE RELEASE</p>
         <h2 id="app-store-title">今日の終わりを、<br />もう少し見渡しやすく。</h2>
-        <p>iOS版Finは、App Storeでの公開に向けて審査へ提出しています。</p>
+        <p>iOS版Finは、App Storeで公開中です。</p>
         {appStoreUrl ? (
           <a href={appStoreUrl} target="_blank" rel="noreferrer" className={styles.finalCtaLink}>
             App Storeで見る

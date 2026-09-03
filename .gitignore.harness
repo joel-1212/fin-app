@@ -1,5 +1,0 @@
-# Harness runtime state is local and must not be committed.
-.harness/runtime-events.jsonl
-.harness/locks/
-.harness/tool-log.jsonl
-.harness/tool-logs/

@@ -2,7 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTaskStore } from "@/app/providers";
-import { selectIncompleteTasks, type TaskStatus } from "@/lib/task-state";
+import {
+  nextLocalDateString,
+  selectTodayIncompleteTasks,
+  selectTomorrowTasks,
+  type PersistedTask,
+  type TaskStatus,
+} from "@/lib/task-state";
 import { formatClockTime, formatFinishAt, selectOverallFinishAt, selectTotalRemainingMs } from "@/lib/task-time";
 
 export type Task = {
@@ -22,6 +28,25 @@ export type DerivedTask = Task & {
   /** 全体に占める割合。全画面レイアウトの帯の幅に使う */
   pct: string;
 };
+
+/** 列（今日/明日）ごとに表示用の形へ落とす。pct はその列の合計に対する割合。 */
+function deriveTasks(sourceTasks: PersistedTask[]): DerivedTask[] {
+  const totalEstimateMs = sourceTasks.reduce((sum, task) => sum + task.estimateMs, 0);
+  return sourceTasks.map((task) => {
+    const min = Math.ceil(task.estimateMs / 60_000);
+    return {
+      id: task.id,
+      icon: task.icon,
+      name: task.title,
+      min,
+      subtasks: task.subtasks.length > 0 ? task.subtasks : undefined,
+      done: false,
+      status: task.status,
+      minLabel: `${min}分`,
+      pct: totalEstimateMs > 0 ? `${((task.estimateMs / totalEstimateMs) * 100).toFixed(2)}%` : "0%",
+    };
+  });
+}
 
 /** 分数を「1時間30分」形式にする。0 のときだけ「0分」と出す */
 export function formatDuration(totalMin: number): string {
@@ -69,7 +94,7 @@ export function useTasks() {
   }, [reconcileTimers]);
 
   const addTask = useCallback(
-    (input: { name: string; min: number; icon: string; subtasks?: string[] }) => {
+    (input: { name: string; min: number; icon: string; subtasks?: string[]; plannedFor?: string }) => {
       const name = input.name.trim();
       if (!name || !Number.isFinite(input.min) || input.min < 0) return;
 
@@ -78,6 +103,7 @@ export function useTasks() {
         icon: input.icon,
         estimateMs: Math.floor(input.min * 60_000),
         subtasks: input.subtasks,
+        plannedFor: input.plannedFor,
       });
     },
     [addSharedTask],
@@ -99,31 +125,27 @@ export function useTasks() {
   );
 
   return useMemo(() => {
-    const sourceTasks = selectIncompleteTasks(state);
-    const totalEstimateMs = sourceTasks.reduce((sum, task) => sum + task.estimateMs, 0);
+    const sourceTasks = selectTodayIncompleteTasks(state, now);
+    const tomorrowSourceTasks = selectTomorrowTasks(state, now);
     const totalRemainingMs = selectTotalRemainingMs(state, now);
     const remainingCount = sourceTasks.length;
     const hasPausedTask = sourceTasks.some((task) => task.status === "paused");
     const finishAt = selectOverallFinishAt(state, now);
     const finishTime = formatFinishAt(finishAt, now);
-    const tasks: DerivedTask[] = sourceTasks.map((task) => {
-      const min = Math.ceil(task.estimateMs / 60_000);
-      return {
-        id: task.id,
-        icon: task.icon,
-        name: task.title,
-        min,
-        subtasks: task.subtasks.length > 0 ? task.subtasks : undefined,
-        done: false,
-        status: task.status,
-        minLabel: `${min}分`,
-        pct: totalEstimateMs > 0 ? `${((task.estimateMs / totalEstimateMs) * 100).toFixed(2)}%` : "0%",
-      };
-    });
+    const tasks = deriveTasks(sourceTasks);
+    const tomorrowTasks = deriveTasks(tomorrowSourceTasks);
     const remainMin = Math.ceil(totalRemainingMs / 60_000);
+    const tomorrowTotalMin = Math.ceil(
+      tomorrowSourceTasks.reduce((sum, task) => sum + task.estimateMs, 0) / 60_000,
+    );
 
     return {
       tasks,
+      tomorrowTasks,
+      /** 「明日」タブで追加するタスクに付けるローカル日付。 */
+      tomorrowDate: nextLocalDateString(now),
+      tomorrowTotalLabel: formatDuration(tomorrowTotalMin),
+      tomorrowCount: tomorrowTasks.length,
       toggle: completeTask,
       addTask,
       editTask,

@@ -6,10 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "test": "node --test \"lib/*.test.mjs\"",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@capacitor-community/in-app-review": "^7.1.0",
     "@capacitor/cli": "^7.6.8",
     "@capacitor/core": "^7.6.8",
     "@capacitor/ios": "^7.6.8",

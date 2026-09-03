@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { Icon } from "@/components/Icon";
 import { useTaskStore } from "@/app/providers";
-import { getProStatus } from "@/lib/entitlement";
 import {
+  getNotificationPermission,
   isNotificationsSupported,
   readNotificationsEnabled,
   requestNotificationPermission,
@@ -14,7 +14,6 @@ import {
 } from "@/lib/notifications";
 import {
   deleteTaskTemplate,
-  FREE_TEMPLATE_LIMIT,
   readTaskTemplates,
   type TaskTemplate,
 } from "@/lib/task-templates";
@@ -33,14 +32,17 @@ const themeOptions: { description: string; label: string; value: ThemePreference
 ];
 
 export default function SettingsPage() {
-  const { state } = useTaskStore();
+  const { state, clearHistory } = useTaskStore();
   const [notificationMessage, setNotificationMessage] = useState<string | null>(null);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [notificationsSupported, setNotificationsSupported] = useState<boolean | null>(null);
   const [preference, setPreference] = useState<ThemePreference | null>(null);
   const [templates, setTemplates] = useState<TaskTemplate[]>([]);
-  const [isPro, setIsPro] = useState(false);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
+  const [confirmingClearHistory, setConfirmingClearHistory] = useState(false);
+  // 「今日」の境界はマウント時に確定させる。SSR とクライアントで Date がずれると
+  // 描画が食い違うため、値が入るまで件数は出さない。
+  const [historyCutoff, setHistoryCutoff] = useState<number | null>(null);
   const isMounted = useRef(false);
   const notificationRequestRevision = useRef(0);
   const runningTask = state.tasks.find((task) => task.status === "running");
@@ -55,20 +57,61 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
-    const supported = isNotificationsSupported();
-    setNotificationsSupported(supported);
-    setNotificationsEnabled(supported && readNotificationsEnabled());
+    // 開きっぱなしで日をまたぐと「昨日以前」の境界が古いままになり、
+    // 削除の対象件数が実際とずれる。戻ってきたときに引き直す。
+    const refresh = () => {
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+      setHistoryCutoff(startOfToday.getTime());
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+
+    refresh();
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, []);
 
+  const oldHistoryCount =
+    historyCutoff === null
+      ? 0
+      : state.tasks.filter(
+          (task) => task.status === "completed" && task.completedAt !== null && task.completedAt < historyCutoff,
+        ).length;
+
   useEffect(() => {
-    setTemplates(readTaskTemplates());
+    const supported = isNotificationsSupported();
+    setNotificationsSupported(supported);
+    const stored = supported && readNotificationsEnabled();
+    setNotificationsEnabled(stored);
+    if (!stored) return;
+
+    // 保存値は「この人が入れたつもり」でしかない。iOS の設定で後から切られていても
+    // 保存値は enabled のままなので、ONと出してしまう。実際の許可を見て正す。
     let cancelled = false;
-    void getProStatus().then((status) => {
-      if (!cancelled) setIsPro(status === "pro");
+    void getNotificationPermission().then((permission) => {
+      if (cancelled || permission === "granted") return;
+      writeNotificationsEnabled(false);
+      setNotificationsEnabled(false);
+      setNotificationMessage(
+        permission === "denied"
+          ? "iOSの設定で通知が切られています。設定アプリから許可すると、また鳴らせます。"
+          : "通知の許可が確認できませんでした。もう一度ONにしてください。",
+      );
+      void syncTaskNotification({ deadlineAt: null, taskId: "", title: "" });
     });
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  useEffect(() => {
+    setTemplates(readTaskTemplates());
   }, []);
 
   function removeTemplate(id: string) {
@@ -106,13 +149,26 @@ export default function SettingsPage() {
       return;
     }
 
-    const granted = await requestNotificationPermission();
+    // 許可の結果を待つ間もトグルを動かしておく。取れなければ戻す。
+    // ここで止めると「押しても何も起きない」ように見えてしまう。
+    if (isMounted.current) {
+      setNotificationMessage(null);
+      setNotificationsEnabled(true);
+    }
+
+    const result = await requestNotificationPermission();
     if (revision !== notificationRequestRevision.current) return;
-    if (!granted) {
+    if (!result.granted) {
       writeNotificationsEnabled(false);
       await syncTaskNotification({ deadlineAt: null, taskId: "", title: "" });
       if (isMounted.current) {
-        setNotificationMessage("通知の許可はiOSの設定で変更できます。");
+        setNotificationMessage(
+          result.reason === "denied"
+            ? "通知の許可はiOSの設定で変更できます。"
+            : result.reason === "unsupported"
+              ? "この端末では通知を利用できません。"
+              : `通知の準備に失敗しました（${result.detail ?? "原因不明"}）。`,
+        );
         setNotificationsEnabled(false);
       }
       return;
@@ -124,11 +180,21 @@ export default function SettingsPage() {
       setNotificationsEnabled(true);
     }
     const task = runningTaskRef.current;
-    await syncTaskNotification({
+    const sync = await syncTaskNotification({
       deadlineAt: task?.deadlineAt ?? null,
       taskId: task?.id ?? "",
       title: task?.title ?? "",
     });
+    if (revision !== notificationRequestRevision.current || !isMounted.current) return;
+    // 許可は取れたのに予約が通らないことがある。黙って成功に見せると
+    // 「ONなのに鳴らない」だけが残る。
+    if (!sync.ok) {
+      setNotificationMessage(
+        sync.reason === "timeout"
+          ? "通知の予約に時間がかかっています。アプリを開き直すと再試行します。"
+          : `通知の予約に失敗しました（${sync.detail ?? sync.reason}）。`,
+      );
+    }
   }
 
   return (
@@ -216,7 +282,7 @@ export default function SettingsPage() {
               }}
             >
               <span style={{ display: "grid", gap: 4 }}>
-                <span style={{ fontSize: 15, fontWeight: 650 }}>見積もりの時間に知らせる</span>
+                <span style={{ fontSize: 15, fontWeight: 650 }}>終わる予定の時刻に知らせる</span>
                 <span style={{ color: "var(--fg-42)", fontSize: 13, lineHeight: 1.45 }}>
                   実行中のタスクの見積もり時刻に通知します
                 </span>
@@ -242,16 +308,9 @@ export default function SettingsPage() {
         </section>
 
         <section aria-labelledby="templates-title" style={{ display: "grid", gap: 12 }}>
-          <div style={{ alignItems: "baseline", display: "flex", justifyContent: "space-between" }}>
-            <h2 id="templates-title" style={{ fontSize: 15, fontWeight: 650, margin: 0 }}>
-              テンプレート
-            </h2>
-            {!isPro && (
-              <span style={{ color: "var(--fg-42)", fontSize: 12.5 }}>
-                {templates.length} / {FREE_TEMPLATE_LIMIT}
-              </span>
-            )}
-          </div>
+          <h2 id="templates-title" style={{ fontSize: 15, fontWeight: 650, margin: 0 }}>
+            テンプレート
+          </h2>
           {templates.length === 0 ? (
             <p style={{ color: "var(--fg-42)", fontSize: 13, lineHeight: 1.45, margin: 0 }}>
               保存されたテンプレートはまだありません
@@ -343,6 +402,94 @@ export default function SettingsPage() {
           )}
         </section>
 
+        <section aria-labelledby="data-title" style={{ display: "grid", gap: 12 }}>
+          <h2 id="data-title" style={{ fontSize: 15, fontWeight: 650, margin: 0 }}>
+            データ
+          </h2>
+          <div
+            style={{
+              alignItems: "center",
+              background: "var(--sheet)",
+              borderRadius: 20,
+              display: "flex",
+              gap: 12,
+              justifyContent: "space-between",
+              minHeight: 72,
+              padding: "16px 18px",
+            }}
+          >
+            <span style={{ display: "grid", gap: 4 }}>
+              <span style={{ fontSize: 15, fontWeight: 650 }}>昨日までの履歴を削除</span>
+              <span style={{ color: "var(--fg-42)", fontSize: 13, lineHeight: 1.45 }}>
+                {oldHistoryCount === 0
+                  ? "昨日までの完了記録はありません"
+                  : `${oldHistoryCount}件の完了記録を削除します。今日のまとめは残ります`}
+              </span>
+            </span>
+            {oldHistoryCount > 0 &&
+              (confirmingClearHistory ? (
+                <span style={{ alignItems: "center", display: "flex", flex: "0 0 auto", gap: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingClearHistory(false)}
+                    style={{
+                      background: "transparent",
+                      border: "1px solid var(--fg-14)",
+                      borderRadius: 999,
+                      color: "var(--fg-60)",
+                      cursor: "pointer",
+                      font: "inherit",
+                      fontSize: 12.5,
+                      fontWeight: 600,
+                      padding: "6px 10px",
+                    }}
+                  >
+                    キャンセル
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (historyCutoff !== null) clearHistory(historyCutoff);
+                      setConfirmingClearHistory(false);
+                    }}
+                    style={{
+                      background: "#b85c55",
+                      border: "1px solid #b85c55",
+                      borderRadius: 999,
+                      color: "#fff",
+                      cursor: "pointer",
+                      font: "inherit",
+                      fontSize: 12.5,
+                      fontWeight: 650,
+                      padding: "6px 10px",
+                    }}
+                  >
+                    削除する
+                  </button>
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmingClearHistory(true)}
+                  style={{
+                    background: "transparent",
+                    border: "1px solid var(--fg-14)",
+                    borderRadius: 999,
+                    color: "var(--fg-60)",
+                    cursor: "pointer",
+                    flex: "0 0 auto",
+                    font: "inherit",
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    padding: "6px 10px",
+                  }}
+                >
+                  削除
+                </button>
+              ))}
+          </div>
+        </section>
+
         <section aria-labelledby="premium-title" style={{ display: "grid", gap: 12 }}>
           <h2 id="premium-title" style={{ fontSize: 15, fontWeight: 650, margin: 0 }}>
             プラン
@@ -365,7 +512,7 @@ export default function SettingsPage() {
           >
             <span style={{ alignItems: "center", display: "flex", gap: 12 }}>
               <Icon name="workspace_premium" size={20} weight={350} color="var(--accent)" />
-              <span>有料プランについて</span>
+              <span>Fin Pro について</span>
             </span>
             <Icon name="arrow_forward" size={18} weight={350} color="var(--fg-42)" />
           </Link>

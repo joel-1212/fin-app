@@ -30,6 +30,7 @@ export function TaskRow({
   task,
   onDelete,
   onEdit,
+  onOpen,
   onSwipeOpenChange,
   onToggle,
   size = "regular",
@@ -38,6 +39,8 @@ export function TaskRow({
   task: DerivedTask;
   onDelete?: (task: DerivedTask) => void;
   onEdit?: (task: DerivedTask) => void;
+  /** タップの行き先を差し替える（明日タブはタイマーではなく編集を開く）。無指定なら従来どおりタイマーへ。 */
+  onOpen?: (task: DerivedTask) => void;
   onSwipeOpenChange?: (open: boolean) => void;
   onToggle?: (id: string) => void;
   size?: Size;
@@ -69,6 +72,11 @@ export function TaskRow({
   function openTask() {
     if (task.done) {
       onToggle?.(task.id);
+      return;
+    }
+
+    if (onOpen) {
+      onOpen(task);
       return;
     }
 

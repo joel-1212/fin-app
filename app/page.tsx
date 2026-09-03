@@ -3,17 +3,19 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { TaskAddSheet, type TaskAddInput, type TaskEditTarget } from "@/components/TaskAddSheet";
-import { StackedTop } from "@/components/layouts/StackedTop";
+import { StackedTop, type HomeTab } from "@/components/layouts/StackedTop";
+import { readOnboardingCompleted } from "@/lib/onboarding";
 import { useTasks } from "@/lib/tasks";
 
 export default function Page() {
   const router = useRouter();
   const model = useTasks();
+  const [activeTab, setActiveTab] = useState<HomeTab>("today");
   const [taskSheetOpen, setTaskSheetOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<TaskEditTarget | undefined>(undefined);
 
   useEffect(() => {
-    if (window.localStorage.getItem("fin-onboarded") === null) {
+    if (!readOnboardingCompleted()) {
       router.replace("/screen-7");
     }
   }, [router]);
@@ -39,9 +41,12 @@ export default function Page() {
 
   function submitTask(input: TaskAddInput) {
     if (editingTask) {
+      // 編集では置いてある日を動かさない。明日のぶんは明日のまま。
       model.editTask(editingTask.id, input);
     } else {
-      model.addTask(input);
+      // 明日タブで追加したタスクだけに明日の日付を付ける。
+      // 今日の「終わる時刻」の合計には入らない。
+      model.addTask(activeTab === "tomorrow" ? { ...input, plannedFor: model.tomorrowDate } : input);
     }
     closeTaskSheet();
   }
@@ -74,6 +79,8 @@ export default function Page() {
     >
       <StackedTop
         model={model}
+        activeTab={activeTab}
+        onChangeTab={setActiveTab}
         onAddTask={() => {
           setEditingTask(undefined);
           setTaskSheetOpen(true);
